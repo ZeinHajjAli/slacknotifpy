@@ -1,16 +1,16 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="slacknotifpy",  # Unique name for your package
-    version="1.0.0",
+    name="slacknotifpy",
+    version="1.0.3",
     packages=find_packages(),
-    py_modules=["slacknotif"],  # List your modules here
+    py_modules=["slacknotif"],
     install_requires=[
-        "slack_sdk",  # Dependencies
+        "slack_sdk",
     ],
     entry_points={
         "console_scripts": [
-            "slacknotif=slacknotif:main",  # Allows `slacknotif` command
+            "slacknotif=slacknotif:main",
         ],
     },
     author="Zein Hajj-Ali",
@@ -18,7 +18,7 @@ setup(
     description="A Python tool for sending Slack notifications on job completion.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/zeinhajjali/slacknotifpy",  # Replace with your repo URL
+    url="https://github.com/zeinhajjali/slacknotifpy",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

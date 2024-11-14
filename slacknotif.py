@@ -12,12 +12,13 @@ from slack_sdk.errors import SlackApiError
 
 def get_config_path(job_script_path):
     project_dir = os.path.dirname(os.path.abspath(job_script_path))
+    print(f"Looking for config in {project_dir}...")
     return os.path.join(project_dir, ".slacknotif_config")
 
 
 def set_config(config_path):
     token = input("Enter your Slack token: ").strip()
-    channel_id = input("Enter you Slack Channel ID").strip()
+    channel_id = input("Enter your Slack Channel ID: ").strip()
     config = {"SLACK_TOKEN": token, "CHANNEL_ID": channel_id}
 
     with open(config_path, "w") as config_file:
@@ -39,7 +40,7 @@ def load_config(config_path):
         config = json.load(config_file)
 
     slack_token = config.get("SLACK_TOKEN")
-    channel_id = config.get("channel_id")
+    channel_id = config.get("CHANNEL_ID")
 
     if not slack_token or not channel_id:
         print(
