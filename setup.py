@@ -1,8 +1,10 @@
+import locale
+
 from setuptools import find_packages, setup
 
 setup(
     name="slacknotifpy",
-    version="1.0.3",
+    version="1.0.4",
     packages=find_packages(),
     py_modules=["slacknotif"],
     install_requires=[
@@ -16,7 +18,7 @@ setup(
     author="Zein Hajj-Ali",
     author_email="zeinhajjali@outlook.com",
     description="A Python tool for sending Slack notifications on job completion.",
-    long_description=open("README.md").read(),
+    long_description=open("README.md", encoding=locale.getencoding()).read(),
     long_description_content_type="text/markdown",
     url="https://github.com/zeinhajjali/slacknotifpy",
     classifiers=[
