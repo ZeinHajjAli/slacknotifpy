@@ -4,11 +4,11 @@ from setuptools import find_packages, setup
 
 setup(
     name="slacknotifpy",
-    version="1.0.5",
+    version="1.0.6",
     packages=find_packages(),
     py_modules=["slacknotif"],
     install_requires=[
-        "slack_sdk",
+        "slack_bolt",
     ],
     entry_points={
         "console_scripts": [
