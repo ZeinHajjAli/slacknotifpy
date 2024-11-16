@@ -79,7 +79,7 @@ slacknotif run -c "<SHELL COMMAND>" [job_name]
 Example:
 
 ```bash
-slacknotif run -c "ls -l /tmp" [job_name]
+slacknotif run -c "ls -l /tmp" "My Shell Comand Job"
 ```
 
 ## Example Slack Notification Messages

@@ -237,7 +237,7 @@ def set_messages(config_path: str) -> None:
     """
     if not os.path.exists(config_path):
         print(
-            "Config file doesn't exist. Please set up the basic config first with `slacknotif init_config`."
+            "Config file doesn't exist. Please set up the basic config first with `slacknotif init`."
         )
         sys.exit(1)
 
