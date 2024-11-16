@@ -13,7 +13,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 
-def get_config_path(job_script_path: str) -> str:
+def get_config_path() -> str:
     """Get the path to the config file.
 
     Args:
@@ -22,9 +22,23 @@ def get_config_path(job_script_path: str) -> str:
     Returns:
         str: Path to the config file.
     """
-    project_dir = os.path.dirname(os.path.abspath(job_script_path))
-    print(f"Looking for config in {project_dir}...")
-    return os.path.join(project_dir, ".slacknotif_config")
+    cwd = os.getcwd()
+    print(f"Looking for config in the current working directory: {cwd}")
+    return os.path.join(cwd, ".slacknotif_config")
+
+
+def init_config() -> None:
+    """Initialize the SlackNotifPy configuration in the current working directory."""
+    config_path = get_config_path()
+    if os.path.exists(config_path):
+        print(f"Config file already exists at {config_path}.")
+        overwrite = input("Do you want to overwrite it? (y/n): ").strip().lower()
+        if overwrite != "y":
+            print("Initialization cancelled.")
+            sys.exit(0)
+
+    set_config(config_path)
+
 
 def set_message_flow() -> tuple[str, str]:
     """Set custom messages for success and failure notifications.
@@ -82,7 +96,7 @@ def load_config(config_path: str) -> tuple[str, str, str, str]:
     """
     if not os.path.exists(config_path):
         print(
-            "SlackNotif config not set for this project. Use `slacknotif config setconfig <job_script.py>` to set it."
+            "SlackNotif config not set for this project. Use `slacknotif config setconfig` to set it."
         )
         sys.exit(1)
 
@@ -96,7 +110,7 @@ def load_config(config_path: str) -> tuple[str, str, str, str]:
 
     if not slack_token or not channel_id:
         print(
-            "Error: SLACK_TOKEN or CHANNEL_ID is missing in the configuration. Use `slacknotif config setconfig <job_script.py>` to reset it."
+            "Error: SLACK_TOKEN or CHANNEL_ID is missing in the configuration. Use `slacknotif config setconfig` to reset it."
         )
         sys.exit(1)
 
@@ -144,7 +158,7 @@ def notify(job_script: str, job_name: Optional[str] = None) -> None:
     if job_name is None:
         job_name = get_default_job_name(job_script)
 
-    config_path = get_config_path(job_script)
+    config_path = get_config_path()
     slack_token, channel_id, success_msg, failure_msg = load_config(config_path)
 
     client = WebClient(token=slack_token)
@@ -164,6 +178,7 @@ def notify(job_script: str, job_name: Optional[str] = None) -> None:
     except SlackApiError as e:
         print(f"Error sending message: {e}")
 
+
 def set_messages(config_path: str) -> None:
     """Set custom messages for success and failure notifications.
 
@@ -171,7 +186,9 @@ def set_messages(config_path: str) -> None:
         config_path (str): Path to the config file.
     """
     if not os.path.exists(config_path):
-        print("Config file doesn't exist. Please set up the basic config first.")
+        print(
+            "Config file doesn't exist. Please set up the basic config first with `slacknotif init_config`."
+        )
         sys.exit(1)
 
     with open(config_path, "r", encoding=locale.getencoding()) as config_file:
@@ -201,6 +218,10 @@ def create_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command")
 
+    init_parser = subparsers.add_parser(
+        "init", help="Initialize the SlackNotifPy configuration in the CWD"
+    )
+
     run_parser = subparsers.add_parser(
         "run", help="Run a Python script and send a Slack notification"
     )
@@ -223,15 +244,8 @@ def create_parser() -> argparse.ArgumentParser:
     setconfig_parser = config_subparsers.add_parser(
         "setconfig", help="Set configuration (token, channel, custom messages)"
     )
-    setconfig_parser.add_argument(
-        "script", help="Path to a script in the project directory"
-    )
-
     setmessages_parser = config_subparsers.add_parser(
         "setmessages", help="Set custom notification messages"
-    )
-    setmessages_parser.add_argument(
-        "script", help="Path to a script in the project directory"
     )
 
     return parser
@@ -247,6 +261,9 @@ def main() -> None:
         parser.print_help()
         sys.exit(1)
 
+    if args.command == "init":
+        init_config()
+
     if args.command == "run":
         if not args.script:
             parser.parse_args(["run", "--help"])
@@ -259,7 +276,7 @@ def main() -> None:
             parser.parse_args(["config", "--help"])
             sys.exit(1)
 
-        config_path = get_config_path(args.script)
+        config_path = get_config_path()
 
         if args.config_command == "setconfig":
             set_config(config_path)
