@@ -23,7 +23,7 @@ To use `slacknotifpy`, you need to configure it with your Slack token and channe
 1. Run the following command to set up the configuration:
 
 ```bash
-slacknotif config setconfig <job_script.py>
+slacknotif init
 ```
 
 2. Follow the prompts to enter:
@@ -39,8 +39,18 @@ You can find the Slack token and channel ID in your Slack app settings.
 To update the success and failure messages for a project, use:
 
 ```bash
-slacknotif config setmessages <job_script.py>
+slacknotif config setmessages
 ```
+
+## Resetting the Configuration
+
+The initialized config file can be reset using the command:
+
+```bash
+slacknotif config setconfig
+```
+
+and following the prompts.
 
 ## Usage
 
@@ -67,8 +77,9 @@ slacknotif run my_script.py "Data Processing Job"
 You can customize these messages using `{job_name}` as a placeholder in the config.
 
 ## Command Reference
-- Configure Slack: `slacknotif config setconfig <job_script.py>`
-- Set Custom Messages: `slacknotif config setmessages <job_script.py>`
+- Configure SlackNotifPy: `slacknotif init`
+- Re-Configure SlackNotifPy: `slacknotif config setconfig`
+- Set Custom Messages: `slacknotif config setmessages`
 - Run Script and Notify: `slacknotif run <script_path> [job_name]`
 
 ## License
