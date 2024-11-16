@@ -4,7 +4,7 @@
 
 ## Features
 
-- Runs a Python script and sends a Slack notification upon completion.
+- Runs a Python script or shell command and sends a Slack notification upon completion.
 - Customizable success and failure messages.
 - Simple configuration for Slack tokens and channel IDs.
 
@@ -69,6 +69,19 @@ Example:
 slacknotif run my_script.py "Data Processing Job"
 ```
 
+A shell command can be run instead of a Python script by using the `--cmd` or `-c` flag:
+
+
+```bash
+slacknotif run -c "<SHELL COMMAND>" [job_name]
+```
+
+Example:
+
+```bash
+slacknotif run -c "ls -l /tmp" [job_name]
+```
+
 ## Example Slack Notification Messages
 
 - Success: "Data Processing Job completed successfully"
@@ -81,6 +94,7 @@ You can customize these messages using `{job_name}` as a placeholder in the conf
 - Re-Configure SlackNotifPy: `slacknotif config setconfig`
 - Set Custom Messages: `slacknotif config setmessages`
 - Run Script and Notify: `slacknotif run <script_path> [job_name]`
+- Run Shell Command and Notify: `slacknotif run -c "<SHELL COMMAND>" [job_name]`
 
 ## License
 
