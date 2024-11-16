@@ -4,13 +4,13 @@ import argparse
 import json
 import locale
 import os
+import re
 import stat
 import subprocess
 import sys
 from typing import Optional
 
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
+from slack_bolt import App
 
 
 def get_config_path() -> str:
@@ -43,8 +43,10 @@ def set_message_flow() -> tuple[str, str]:
     Returns:
         tuple[str, str]: Success message and failure message.
     """
-    print("\nYou can use {job_name} in your messages as a placeholder")
-    print("Example: '{job_name} did the thing!'")
+    print(
+        "\nYou can use {job_name} in your messages as a placeholder.\nYou can tag a user with their real name or display name with {@John Doe} or {@JohnDoe42}"
+    )
+    print("Example: '{job_name} did the thing! Congrats {@John Doe}!'")
     success_msg = input(
         "Enter custom success message (press Enter to use default): "
     ).strip()
@@ -114,6 +116,48 @@ def load_config(config_path: str) -> tuple[str, str, str, str]:
     return slack_token, channel_id, success_msg, failure_msg
 
 
+def resolve_user_mentions(app: App, message: str) -> str:
+    """Resolve {@username} mentions to Slack user IDs in a message.
+
+    Args:
+        app (App): Slack Bolt app for API interaction.
+        message (str): The message containing {@username} placeholders.
+
+    Returns:
+        str: The message with resolved user mentions.
+    """
+    user_mentions = re.findall(r"{@([^}]+)}", message)
+    if not user_mentions:
+        return message
+
+    try:
+        users_response = app.client.users_list()
+        if not users_response["ok"]:
+            print("Error retrieving user list from Slack.")
+            return message
+        slack_users = {}
+        for user in users_response["members"]:
+            if user.get("deleted", False):
+                continue
+            slack_id = user["id"]
+            display_name = user.get("profile", {}).get("display_name_normalized", "")
+            real_name = user.get("profile", {}).get("real_name_normalized", "")
+            if display_name:
+                slack_users[display_name] = slack_id
+            if real_name:
+                slack_users[real_name] = slack_id
+    except Exception as e:
+        print(f"Error querying users.list: {e}")
+        return message
+
+    for username in user_mentions:
+        slack_id = slack_users.get(username, None)
+        mention = f"<@{slack_id}>" if slack_id else "<user not found>"
+        message = message.replace(f"{{@{username}}}", mention)
+
+    return message
+
+
 def format_message(message_template: str, job_name: str) -> str:
     """Format the message with the job name.
 
@@ -159,7 +203,7 @@ def notify(job: str, job_name: Optional[str] = None, is_command: bool = False) -
     config_path = get_config_path()
     slack_token, channel_id, success_msg, failure_msg = load_config(config_path)
 
-    client = WebClient(token=slack_token)
+    app = App(token=slack_token)
     bot_name = "SlackNotifPy"
 
     try:
@@ -167,16 +211,21 @@ def notify(job: str, job_name: Optional[str] = None, is_command: bool = False) -
             subprocess.run(job, shell=True, check=True)
         else:
             subprocess.run(["python", job], check=True)
+
+        success_msg = resolve_user_mentions(app, success_msg)
         formatted_success = format_message(success_msg, job_name)
         message = formatted_success or f"{job_name} completed successfully"
     except subprocess.CalledProcessError:
+        failure_msg = resolve_user_mentions(app, failure_msg)
         formatted_failure = format_message(failure_msg, job_name)
         message = formatted_failure or f"{job_name} failed"
 
+    # message = resolve_user_mentions(app, message)
+
     try:
-        client.chat_postMessage(channel=channel_id, text=message, username=bot_name)
+        app.client.chat_postMessage(channel=channel_id, text=message, username=bot_name)
         print("Message sent successfully!")
-    except SlackApiError as e:
+    except Exception as e:
         print(f"Error sending message: {e}")
 
 
@@ -230,7 +279,7 @@ def create_parser() -> argparse.ArgumentParser:
         "-c", "--cmd", action="store_true", help="Specify if the job is a shell command"
     )
     run_parser.add_argument(
-        "job", nargs="*", help="Path to the Python script or shell command to run"
+        "job", help="Path to the Python script or shell command to run"
     )
     run_parser.add_argument(
         "job_name",
@@ -257,7 +306,6 @@ def main() -> None:
     """Main function to run the SlackNotifPy CLI."""
     parser = create_parser()
     args = parser.parse_args()
-    print(args)
 
     if not args.command:
         parser.print_help()

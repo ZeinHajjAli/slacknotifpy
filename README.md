@@ -89,6 +89,8 @@ slacknotif run -c "ls -l /tmp" [job_name]
 
 You can customize these messages using `{job_name}` as a placeholder in the config.
 
+You can also tag users using thier real or display names using `{@John Doe}` or `{@JohnDoe42}`
+
 ## Command Reference
 - Configure SlackNotifPy: `slacknotif init`
 - Re-Configure SlackNotifPy: `slacknotif config setconfig`
