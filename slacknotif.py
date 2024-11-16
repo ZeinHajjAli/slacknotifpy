@@ -16,9 +16,6 @@ from slack_sdk.errors import SlackApiError
 def get_config_path() -> str:
     """Get the path to the config file.
 
-    Args:
-        job_script_path (str): Path to the job script.
-
     Returns:
         str: Path to the config file.
     """
@@ -148,15 +145,16 @@ def get_default_job_name(script_path: str) -> str:
     return os.path.splitext(os.path.basename(script_path))[0]
 
 
-def notify(job_script: str, job_name: Optional[str] = None) -> None:
+def notify(job: str, job_name: Optional[str] = None, is_command: bool = False) -> None:
     """Send a notification to Slack.
 
     Args:
         job_script (str): Path to the job script.
         job_name (str): Name of the job.
+        is_command (bool): Whether or not the job is an arbitrary shell command.
     """
     if job_name is None:
-        job_name = get_default_job_name(job_script)
+        job_name = get_default_job_name(job) if not is_command else "Command Job"
 
     config_path = get_config_path()
     slack_token, channel_id, success_msg, failure_msg = load_config(config_path)
@@ -165,7 +163,10 @@ def notify(job_script: str, job_name: Optional[str] = None) -> None:
     bot_name = "SlackNotifPy"
 
     try:
-        subprocess.run(["python", job_script], check=True)
+        if is_command:
+            subprocess.run(job, shell=True, check=True)
+        else:
+            subprocess.run(["python", job], check=True)
         formatted_success = format_message(success_msg, job_name)
         message = formatted_success or f"{job_name} completed successfully"
     except subprocess.CalledProcessError:
@@ -218,7 +219,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command")
 
-    init_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "init", help="Initialize the SlackNotifPy configuration in the CWD"
     )
 
@@ -226,12 +227,15 @@ def create_parser() -> argparse.ArgumentParser:
         "run", help="Run a Python script and send a Slack notification"
     )
     run_parser.add_argument(
-        "script", nargs="?", help="Path to the Python script to run"
+        "-c", "--cmd", action="store_true", help="Specify if the job is a shell command"
+    )
+    run_parser.add_argument(
+        "job", nargs="*", help="Path to the Python script or shell command to run"
     )
     run_parser.add_argument(
         "job_name",
         nargs="?",
-        help="Name of the job (used in notifications), defaults to script filename",
+        help="Name of the job (used in notifications), defaults to script filename or 'Command Job'",
     )
 
     config_parser = subparsers.add_parser(
@@ -241,12 +245,10 @@ def create_parser() -> argparse.ArgumentParser:
         dest="config_command", help="Configuration commands"
     )
 
-    setconfig_parser = config_subparsers.add_parser(
+    config_subparsers.add_parser(
         "setconfig", help="Set configuration (token, channel, custom messages)"
     )
-    setmessages_parser = config_subparsers.add_parser(
-        "setmessages", help="Set custom notification messages"
-    )
+    config_subparsers.add_parser("setmessages", help="Set custom notification messages")
 
     return parser
 
@@ -265,11 +267,20 @@ def main() -> None:
         init_config()
 
     if args.command == "run":
-        if not args.script:
+        if not args.job:
             parser.parse_args(["run", "--help"])
             sys.exit(1)
 
-        notify(args.script, args.job_name)
+        if args.cmd:
+            job = " ".join(args.job)
+            if not job:
+                print("Error: No command provided for --cmd.")
+                sys.exit(1)
+
+        else:
+            job = args.job[0]
+
+        notify(args.job, args.job_name, args.cmd)
 
     elif args.command == "config":
         if not args.config_command:
