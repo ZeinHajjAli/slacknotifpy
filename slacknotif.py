@@ -201,7 +201,13 @@ def notify(job: str, job_name: Optional[str] = None, is_command: bool = False) -
         job_name = get_default_job_name(job) if not is_command else "Command Job"
 
     config_path = get_config_path()
-    slack_token, channel_id, success_msg, failure_msg = load_config(config_path)
+    if token and channel:
+        slack_token = token
+        channel_id = channel
+        success_msg = "{job_name} completed successfully"
+        failure_msg = "{job_name} failed"
+    else:
+        slack_token, channel_id, success_msg, failure_msg = load_config(config_path)
 
     app = App(token=slack_token)
     bot_name = "SlackNotifPy"
@@ -286,6 +292,8 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Name of the job (used in notifications), defaults to script filename or 'Command Job'",
     )
+    run_parser.add_argument("--token", help="Slack API token (overrides config file)")
+    run_parser.add_argument("--channel", help="Slack channel ID (overrides config file)")
 
     config_parser = subparsers.add_parser(
         "config", help="Configure SlackNotifPy settings"
@@ -307,6 +315,7 @@ def main() -> None:
     parser = create_parser()
     args = parser.parse_args()
 
+    # If no command is provided, print help and exit
     if not args.command:
         parser.print_help()
         sys.exit(1)
@@ -314,21 +323,23 @@ def main() -> None:
     if args.command == "init":
         init_config()
 
-    if args.command == "run":
+    elif args.command == "run":
         if not args.job:
             parser.parse_args(["run", "--help"])
             sys.exit(1)
 
         if args.cmd:
-            job = " ".join(args.job)
-            if not job:
-                print("Error: No command provided for --cmd.")
-                sys.exit(1)
-
+            job = args.job[0]
         else:
             job = args.job[0]
 
-        notify(args.job, args.job_name, args.cmd)
+        notify(
+            job=job,
+            job_name=args.job_name,  # Job name provided by the user
+            is_command=args.cmd,  # Determine if it's a shell command
+            token=args.token,  # Token passed from the command line
+            channel=args.channel,  # Channel passed from the command line
+        )
 
     elif args.command == "config":
         if not args.config_command:
@@ -341,6 +352,12 @@ def main() -> None:
             set_config(config_path)
         elif args.config_command == "setmessages":
             set_messages(config_path)
+
+    else:
+        # Handle unknown commands
+        print(f"Unknown command: {args.command}")
+        parser.print_help()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
