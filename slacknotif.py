@@ -91,29 +91,16 @@ def load_config(config_path: str) -> tuple[str, str, str, str]:
         config_path (str): Path to the config file.
 
     Returns:
-        tuple[str, str, str, str]: Slack token, channel ID, success message, and failure message.
+        dict: Slack configuration (could be partial if keys are missing).
     """
     if not os.path.exists(config_path):
         print(
-            "SlackNotif config not set for this project. Use `slacknotif config setconfig` to set it."
+            "SlackNotif config not set for this project. Proceeding with defaults or CLI arguments."
         )
-        sys.exit(1)
+        return {}
 
     with open(config_path, "r", encoding=locale.getencoding()) as config_file:
-        config = json.load(config_file)
-
-    slack_token = config.get("SLACK_TOKEN")
-    channel_id = config.get("CHANNEL_ID")
-    success_msg = config.get("SUCCESS_MSG")
-    failure_msg = config.get("FAILURE_MSG")
-
-    if not slack_token or not channel_id:
-        print(
-            "Error: SLACK_TOKEN or CHANNEL_ID is missing in the configuration. Use `slacknotif config setconfig` to reset it."
-        )
-        sys.exit(1)
-
-    return slack_token, channel_id, success_msg, failure_msg
+        return json.load(config_file)
 
 
 def resolve_user_mentions(app: App, message: str) -> str:
@@ -189,21 +176,45 @@ def get_default_job_name(script_path: str) -> str:
     return os.path.splitext(os.path.basename(script_path))[0]
 
 
-def notify(job: str, job_name: Optional[str] = None, is_command: bool = False) -> None:
+def notify(
+    job: str,
+    job_name: Optional[str] = None,
+    is_command: bool = False,
+    cli_config: dict = None,
+) -> None:
     """Send a notification to Slack.
 
     Args:
         job_script (str): Path to the job script.
         job_name (str): Name of the job.
         is_command (bool): Whether or not the job is an arbitrary shell command.
+        cli_config: (dict): Dictionary of values to override the config file.
     """
+    if cli_config is None:
+        cli_config = {}
+
     if job_name is None:
         job_name = get_default_job_name(job) if not is_command else "Command Job"
 
     config_path = get_config_path()
-    slack_token, channel_id, success_msg, failure_msg = load_config(config_path)
+    file_config = load_config(config_path)
 
-    app = App(token=slack_token)
+    config = {
+        "SLACK_TOKEN": cli_config.get("token") or file_config.get("SLACK_TOKEN"),
+        "CHANNEL_ID": cli_config.get("channel") or file_config.get("CHANNEL_ID"),
+        "SUCCESS_MSG": cli_config.get("success_msg")
+        or file_config.get("SUCCESS_MSG", ""),
+        "FAILURE_MSG": cli_config.get("failure_msg")
+        or file_config.get("FAILURE_MSG", ""),
+    }
+
+    if not config["SLACK_TOKEN"] or not config["CHANNEL_ID"]:
+        print(
+            "Error: Slack token and channel ID are required. Provide them via CLI or config."
+        )
+        sys.exit(1)
+
+    app = App(token=config.get("SLACK_TOKEN"))
     bot_name = "SlackNotifPy"
 
     try:
@@ -212,18 +223,18 @@ def notify(job: str, job_name: Optional[str] = None, is_command: bool = False) -
         else:
             subprocess.run(["python", job], check=True)
 
-        success_msg = resolve_user_mentions(app, success_msg)
+        success_msg = resolve_user_mentions(app, config.get("SUCCESS_MSG"))
         formatted_success = format_message(success_msg, job_name)
         message = formatted_success or f"{job_name} completed successfully"
     except subprocess.CalledProcessError:
-        failure_msg = resolve_user_mentions(app, failure_msg)
+        failure_msg = resolve_user_mentions(app, config.get("FAILURE_MSG"))
         formatted_failure = format_message(failure_msg, job_name)
         message = formatted_failure or f"{job_name} failed"
 
-    # message = resolve_user_mentions(app, message)
-
     try:
-        app.client.chat_postMessage(channel=channel_id, text=message, username=bot_name)
+        app.client.chat_postMessage(
+            channel=config.get("CHANNEL_ID"), text=message, username=bot_name
+        )
         print("Message sent successfully!")
     except Exception as e:
         print(f"Error sending message: {e}")
@@ -286,6 +297,16 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Name of the job (used in notifications), defaults to script filename or 'Command Job'",
     )
+    run_parser.add_argument("--token", help="Slack API token (overrides config file)")
+    run_parser.add_argument(
+        "--channel", help="Slack channel ID (overrides config file)"
+    )
+    run_parser.add_argument(
+        "--success-msg", help="Custom success message (overrides config file)"
+    )
+    run_parser.add_argument(
+        "--failure-msg", help="Custom failure message (overrides config file)"
+    )
 
     config_parser = subparsers.add_parser(
         "config", help="Configure SlackNotifPy settings"
@@ -314,21 +335,24 @@ def main() -> None:
     if args.command == "init":
         init_config()
 
-    if args.command == "run":
+    elif args.command == "run":
         if not args.job:
             parser.parse_args(["run", "--help"])
             sys.exit(1)
 
-        if args.cmd:
-            job = " ".join(args.job)
-            if not job:
-                print("Error: No command provided for --cmd.")
-                sys.exit(1)
+        cli_config = {
+            "token": args.token,
+            "channel": args.channel,
+            "success_msg": args.success_msg,
+            "failure_msg": args.failure_msg,
+        }
 
-        else:
-            job = args.job[0]
-
-        notify(args.job, args.job_name, args.cmd)
+        notify(
+            job=args.job,
+            job_name=args.job_name,
+            is_command=args.cmd,
+            cli_config=cli_config,
+        )
 
     elif args.command == "config":
         if not args.config_command:
@@ -341,6 +365,11 @@ def main() -> None:
             set_config(config_path)
         elif args.config_command == "setmessages":
             set_messages(config_path)
+
+    else:
+        print(f"Unknown command: {args.command}")
+        parser.print_help()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
