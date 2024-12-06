@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="slacknotifpy",
-    version="1.0.6",
+    version="1.0.7",
     packages=find_packages(),
     py_modules=["slacknotif"],
     install_requires=[
